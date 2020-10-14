@@ -8,12 +8,12 @@
 
 static float WEIGHTS[] = {0.05, 0.1, 0.15, 0.25, 0.45};
 
-typedef struct CircularQueue {
+typedef struct CircularBuffer {
    int32_t  counter;
    struct SensorSample *values;
 };
 
-void init_queue(struct CircularQueue *queue){
+void init_buffer(struct CircularBuffer *queue){
     int i;
 
     queue->values = (int32_t *) malloc(QUEUE_SIZE * sizeof(struct SensorSample));
@@ -23,24 +23,22 @@ void init_queue(struct CircularQueue *queue){
         queue->values[i].sample = 0;
 }
 
-void free_queue(struct CircularQueue *queue){
+void free_buffer(struct CircularBuffer *queue){
     free(queue->values);
 }
 
-int32_t size_queue(struct CircularQueue *queue){
+int32_t size_buffer(struct CircularBuffer *queue){
     return queue->counter;
 }
 
-struct SensorSample get_element(struct CircularQueue *queue){
-    if(queue->counter == 0) {
-        queue->counter = QUEUE_SIZE - 1;
-    }
-    return queue->values[queue->counter--];
+struct SensorSample get_element(struct CircularBuffer *queue){
+    queue->counter %= QUEUE_SIZE;
+    return queue->values[queue->counter++];
 }
 
-void set_element(struct CircularQueue *queue, struct SensorSample element){
-    queue->values[queue->counter] = element;
-    queue->counter = (queue->counter + 1) % QUEUE_SIZE;
+void set_element(struct CircularBuffer *queue, struct SensorSample element){
+    queue->counter %= QUEUE_SIZE;
+    queue->values[queue->counter++] = element;
 }
 
 
@@ -85,27 +83,31 @@ void sensorTask(void *pvparameters){
 
 
 void filterTask(void *pvparameters){
+    int i;
     struct FilterArgs *args = (struct FilterArgs *) pvparameters;
     struct FilterSample sample;
-    struct CircularQueue queue;
+    struct CircularBuffer queue;
     BaseType_t is_read;
     struct SensorSample sensor_sample;
 
-    init_queue(&queue);
+    init_buffer(&queue);
 
     while(1){
         // keep trying if queue is empty
         do { is_read = xQueueReceive(args->in_queue, (void *) &sensor_sample, 20); } while(!is_read);
+        set_element(&queue, sensor_sample);
 
-        if(size_queue(&queue) < QUEUE_SIZE-1) {
-            set_element(&queue, sensor_sample);
-        }
-        else {
+        if(size_buffer(&queue) == QUEUE_SIZE) {
             // mean of all samples
+            for(i = 0; i < QUEUE_SIZE; i++)
+                sample.sample += ((struct SensorSample) get_element(&queue)).sample * WEIGHTS[i];
+
+            // TODO: check how to select a timestamp
+            sample.timestamp = sensor_sample.timestamp;
         }
     }
 
-    free_queue(&queue);
+    free_buffer(&queue);
     vTaskDelete(NULL);
 }
 
