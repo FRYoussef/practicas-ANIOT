@@ -119,6 +119,13 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
+# PR2 configuration
+#
+CONFIG_S1_MILLIS=10
+CONFIG_S2_MILLIS=11
+# end of PR2 configuration
+
+#
 # Compiler options
 #
 CONFIG_COMPILER_OPTIMIZATION_DEFAULT=y
