@@ -10,17 +10,17 @@ static float WEIGHTS[] = {0.05, 0.1, 0.15, 0.25, 0.45};
 
 typedef struct CircularQueue {
    int32_t  counter;
-   int32_t *values;
+   struct SensorSample *values;
 };
 
 void init_queue(struct CircularQueue *queue){
     int i;
 
-    queue->values = (int32_t *) malloc(QUEUE_SIZE * sizeof(int32_t));
+    queue->values = (int32_t *) malloc(QUEUE_SIZE * sizeof(struct SensorSample));
     queue->counter = 0;
 
     for(i = 0; i < QUEUE_SIZE; i++)
-        queue->values[i] = 0;
+        queue->values[i].sample = 0;
 }
 
 void free_queue(struct CircularQueue *queue){
@@ -31,11 +31,14 @@ int32_t size_queue(struct CircularQueue *queue){
     return queue->counter;
 }
 
-int32_t get_element(struct CircularQueue *queue){
-    return queue->values[queue->counter++];
+struct SensorSample get_element(struct CircularQueue *queue){
+    if(queue->counter == 0) {
+        queue->counter = QUEUE_SIZE - 1;
+    }
+    return queue->values[queue->counter--];
 }
 
-void set_element(struct CircularQueue *queue, int32_t element){
+void set_element(struct CircularQueue *queue, struct SensorSample element){
     queue->values[queue->counter] = element;
     queue->counter = (queue->counter + 1) % QUEUE_SIZE;
 }
@@ -85,11 +88,21 @@ void filterTask(void *pvparameters){
     struct FilterArgs *args = (struct FilterArgs *) pvparameters;
     struct FilterSample sample;
     struct CircularQueue queue;
+    BaseType_t is_read;
+    struct SensorSample sensor_sample;
 
     init_queue(&queue);
 
     while(1){
+        // keep trying if queue is empty
+        do { is_read = xQueueReceive(args->in_queue, (void *) &sensor_sample, 20); } while(!is_read);
 
+        if(size_queue(&queue) < QUEUE_SIZE-1) {
+            set_element(&queue, sensor_sample);
+        }
+        else {
+            // mean of all samples
+        }
     }
 
     free_queue(&queue);
