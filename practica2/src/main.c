@@ -1,8 +1,8 @@
 #include <stdio.h>
+#include <time.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
-#include "esp_log.h"
 
 #define QUEUE_SIZE 5
 
@@ -54,12 +54,12 @@ typedef struct FilterArgs {
 
 typedef struct SensorSample {
    int32_t sample;
-   char *timestamp;
+   struct tm timestamp;
 };
 
 typedef struct FilterSample {
    float sample;
-   char *timestamp;
+   struct tm timestamp;
 };
 
 
@@ -67,11 +67,15 @@ void sensorTask(void *pvparameters){
     struct SensorArgs *args = (struct SensorArgs *) pvparameters;
     struct SensorSample sample;
     BaseType_t is_write;
+    time_t now;
 
     while(1){
         // just takes values inside int32_t [INT32_MIN, INT32_MAX]
         sample.sample = (int32_t) esp_random();
-        sample.timestamp = esp_log_system_timestamp();
+        time(&now);
+        localtime_r(&now, &sample.timestamp);
+
+        //sample.timestamp = esp_log_system_timestamp();
 
         // keep trying if queue is full
         do { is_write = xQueueSendToFront(args->queue, (void *) &sample, 20); } while(!is_write);
@@ -111,17 +115,37 @@ void filterTask(void *pvparameters){
     vTaskDelete(NULL);
 }
 
+/*
+ * Example of QueueSet which allows manage multiples queues: 
+ * https://github.com/FreeRTOS/FreeRTOS/blob/master/FreeRTOS/Demo/Common/Minimal/QueueSet.c
+ */
+void controllerTask(void *pvparameters){
+    QueueSetHandle_t *set = (QueueSetHandle_t *) pvparameters;
+    QueueSetMemberHandle_t which_queue;
+    struct FilterSample sample;
+
+    while(1){
+        // keep trying if queue is empty
+        //do { is_read = xQueueReceive(args->in_queue, (void *) &sensor_sample, 20); } while(!is_read);
+        
+    }
+
+    vTaskDelete(NULL);
+}
+
 
 void app_main() {
     // create input args
     struct SensorArgs s_args1, s_args2;
     struct FilterArgs f_args1, f_args2;
     QueueHandle_t s_queue1, s_queue2, f_queue1, f_queue2;
+    QueueSetHandle_t set;
 
     s_queue1 = xQueueCreate(QUEUE_SIZE, sizeof(struct SensorSample));
     s_queue2 = xQueueCreate(QUEUE_SIZE, sizeof(struct SensorSample));
     f_queue1 = xQueueCreate(QUEUE_SIZE, sizeof(struct FilterSample));
     f_queue2 = xQueueCreate(QUEUE_SIZE, sizeof(struct FilterSample));
+    set      = xQueueCreateSet(QUEUE_SIZE + QUEUE_SIZE); // size = size_of(f_queue1) + size_of(f_queue2) -> max uxEventQueueLength
 
     s_args1.milis = CONFIG_S1_MILLIS;
     s_args1.queue = &s_queue1;
@@ -135,10 +159,14 @@ void app_main() {
     f_args2.in_queue = &s_queue2;
     f_args2.out_queue = &f_queue2;
 
+    xQueueAddToSet(f_queue1, set);
+    xQueueAddToSet(f_queue2, set);
+
     xTaskCreatePinnedToCore(&sensorTask, "sensorTask1", 2048, &s_args1, 5, NULL, 0);
     xTaskCreatePinnedToCore(&sensorTask, "sensorTask2", 2048, &s_args2, 5, NULL, 0);
     xTaskCreatePinnedToCore(&filterTask, "filterTask1", 2048, &f_args1, 5, NULL, 1);
     xTaskCreatePinnedToCore(&filterTask, "filterTask2", 2048, &f_args2, 5, NULL, 1);
+    xTaskCreatePinnedToCore(&controllerTask, "controllerTask", 2048, &set, 5, NULL, 1);
 
     while(1) {}
 
