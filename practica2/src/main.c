@@ -65,11 +65,13 @@ void controllerTask(void *pvparameters){
     char buff[1024];
 
     while(1){
-        // keep trying if queue is empty
-        //do { is_read = xQueueReceive(args->in_queue, (void *) &sensor_sample, 20); } while(!is_read);
+        // read from set queue
+        which_queue = xQueueSelectFromSet(set, 1);
 
-        strftime(buff, sizeof(buff), "%c", &sample.timestamp);
-        printf("Task %i has set %5.4f value. The last sample was taken in %s\n", , sample.sample, buff); // TODO: write task number
+        if(which_queue != NULL) {
+            strftime(buff, sizeof(buff), "%c", &sample.timestamp);
+            printf("Task %i has set %5.4f value. The last sample was taken in %s\n", , sample.sample, buff); // TODO: write task number
+        }
 
         // print system tasks info
         printf("\n---------------------------------\n");
