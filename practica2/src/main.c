@@ -1,66 +1,5 @@
-#include <stdio.h>
-#include <time.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
-
-#define QUEUE_SIZE 5
-
-static float WEIGHTS[] = {0.05, 0.1, 0.15, 0.25, 0.45};
-
-typedef struct CircularBuffer {
-   int32_t  counter;
-   struct SensorSample *values;
-};
-
-void init_buffer(struct CircularBuffer *queue){
-    int i;
-
-    queue->values = (int32_t *) malloc(QUEUE_SIZE * sizeof(struct SensorSample));
-    queue->counter = 0;
-
-    for(i = 0; i < QUEUE_SIZE; i++)
-        queue->values[i].sample = 0;
-}
-
-void free_buffer(struct CircularBuffer *queue){
-    free(queue->values);
-}
-
-int32_t size_buffer(struct CircularBuffer *queue){
-    return queue->counter;
-}
-
-struct SensorSample get_element(struct CircularBuffer *queue){
-    queue->counter %= QUEUE_SIZE;
-    return queue->values[queue->counter++];
-}
-
-void set_element(struct CircularBuffer *queue, struct SensorSample element){
-    queue->counter %= QUEUE_SIZE;
-    queue->values[queue->counter++] = element;
-}
-
-
-typedef struct SensorArgs {
-   int32_t  milis;
-   QueueHandle_t *queue;
-};
-
-typedef struct FilterArgs {
-   QueueHandle_t *in_queue;
-   QueueHandle_t *out_queue;
-};
-
-typedef struct SensorSample {
-   int32_t sample;
-   struct tm timestamp;
-};
-
-typedef struct FilterSample {
-   float sample;
-   struct tm timestamp;
-};
+#include "common.h"
+#include "circular_buffer.h"
 
 
 void sensorTask(void *pvparameters){
@@ -106,7 +45,7 @@ void filterTask(void *pvparameters){
             for(i = 0; i < QUEUE_SIZE; i++)
                 sample.sample += ((struct SensorSample) get_element(&queue)).sample * WEIGHTS[i];
 
-            // TODO: check how to select a timestamp
+            // Gets last timestamp
             sample.timestamp = sensor_sample.timestamp;
         }
     }
@@ -145,7 +84,9 @@ void app_main() {
     s_queue2 = xQueueCreate(QUEUE_SIZE, sizeof(struct SensorSample));
     f_queue1 = xQueueCreate(QUEUE_SIZE, sizeof(struct FilterSample));
     f_queue2 = xQueueCreate(QUEUE_SIZE, sizeof(struct FilterSample));
-    set      = xQueueCreateSet(QUEUE_SIZE + QUEUE_SIZE); // size = size_of(f_queue1) + size_of(f_queue2) -> max uxEventQueueLength
+
+    // size = size_of(f_queue1) + size_of(f_queue2) -> max uxEventQueueLength
+    set      = xQueueCreateSet(QUEUE_SIZE + QUEUE_SIZE); 
 
     s_args1.milis = CONFIG_S1_MILLIS;
     s_args1.queue = &s_queue1;
@@ -168,7 +109,7 @@ void app_main() {
     xTaskCreatePinnedToCore(&filterTask, "filterTask2", 2048, &f_args2, 5, NULL, 1);
     xTaskCreatePinnedToCore(&controllerTask, "controllerTask", 2048, &set, 5, NULL, 1);
 
-    while(1) {}
+    while(1) { vTaskDelay(1000); }
 
     // delete vars
     vQueueDelete(s_queue1);
