@@ -33,7 +33,7 @@ void filterTask(void *pvparameters){
     BaseType_t is_read;
     struct SensorSample sensor_sample;
 
-    init_buffer(&queue);
+    init_buffer(&queue, QUEUE_SIZE);
 
     while(1){
         // keep trying if queue is empty
@@ -55,7 +55,7 @@ void filterTask(void *pvparameters){
 }
 
 /*
- * Example of QueueSet which allows manage multiples queues: 
+ * Example of QueueSet which allows manage multiple queues: 
  * https://github.com/FreeRTOS/FreeRTOS/blob/master/FreeRTOS/Demo/Common/Minimal/QueueSet.c
  */
 void controllerTask(void *pvparameters){
