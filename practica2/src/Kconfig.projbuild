@@ -2,11 +2,11 @@ menu "PR2 configuration"
     config S1_MILLIS
     int "Number of milliseconds that sensor task 1 should sample"
     range 1 10000
-    default 10
+    default 100
 
     config S2_MILLIS
     int "Number of milliseconds that sensor task 2 should sample"
     range 1 10000
-    default 10
+    default 100
 
 endmenu

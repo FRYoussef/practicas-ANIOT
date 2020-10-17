@@ -9,6 +9,7 @@
 #include "freertos/queue.h"
 
 #define QUEUE_SIZE 5
+#define QUEUE_SET_SIZE (QUEUE_SIZE + QUEUE_SIZE)
 #define CONTROLLER_SLEEP 1000
 static float WEIGHTS[] = {0.05, 0.1, 0.15, 0.25, 0.45};
 

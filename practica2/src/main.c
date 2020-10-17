@@ -88,13 +88,13 @@ void filterTask(void *pvparameters){
 void controllerTask(void *pvparameters){
     QueueSetHandle_t *q_set = (QueueSetHandle_t *) pvparameters;
     char buff[512];
-    
+    int i;
 
     for(;;){
-        // call twice cause we are waiting two queues, in other case, 
-        // this will always show just filterTask1 data
-        look_for_data_and_print(q_set);
-        look_for_data_and_print(q_set);
+        // Needs to fetch as many times as the max events that can be added to the set.
+        for(i = 0; i < QUEUE_SET_SIZE; i++)
+            look_for_data_and_print(q_set);
+        
 
         // print system tasks info
         printf("\n---------------------------------\n");
@@ -123,7 +123,7 @@ void app_main() {
     f_queue2 = xQueueCreate(QUEUE_SIZE, sizeof(struct FilterSample));
 
     // size = size_of(f_queue1) + size_of(f_queue2) -> max uxEventQueueLength
-    q_set = xQueueCreateSet(QUEUE_SIZE + QUEUE_SIZE); 
+    q_set = xQueueCreateSet(QUEUE_SET_SIZE); 
 
     s_args1.milis = CONFIG_S1_MILLIS;
     s_args1.queue = &s_queue1;
@@ -144,7 +144,7 @@ void app_main() {
     xTaskCreatePinnedToCore(&sensorTask, "sensorTask2", 1024, &s_args2, 5, NULL, 0);
     xTaskCreatePinnedToCore(&filterTask, "filterTask1", 1024, &f_args1, 5, NULL, 1);
     xTaskCreatePinnedToCore(&filterTask, "filterTask2", 1024, &f_args2, 5, NULL, 1);
-    xTaskCreatePinnedToCore(&controllerTask, "controllerTask", 2048, &q_set, 5, NULL, 1);
+    xTaskCreatePinnedToCore(&controllerTask, "controllerTask", 3096, &q_set, 5, NULL, 1);
 
     while(1) { vTaskDelay(1000); }
 
