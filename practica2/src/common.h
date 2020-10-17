@@ -3,12 +3,13 @@
 
 #include <stdio.h>
 #include <time.h>
+#include <float.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
 #define QUEUE_SIZE 5
-#define CONTROLLER_SLEEP 10000
+#define CONTROLLER_SLEEP 1000
 static float WEIGHTS[] = {0.05, 0.1, 0.15, 0.25, 0.45};
 
 typedef struct SensorArgs {
@@ -23,13 +24,13 @@ typedef struct FilterArgs {
 
 typedef struct SensorSample {
    int32_t sample;
-   struct tm timestamp;
+   time_t timestamp;
 };
 
 typedef struct FilterSample {
    char *name;
    float sample;
-   struct tm timestamp;
+   time_t timestamp;
 };
 
 #endif

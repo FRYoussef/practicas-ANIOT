@@ -5,7 +5,7 @@ void init_buffer(struct CircularBuffer *queue, int32_t size){
     int i;
 
     queue->size = size;
-    queue->values = (int32_t *) malloc(queue->size * sizeof(struct SensorSample));
+    queue->values = (struct SensorSample *) malloc(queue->size * sizeof(struct SensorSample));
     queue->counter = 0;
 
     for(i = 0; i < queue->size; i++)

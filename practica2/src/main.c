@@ -2,20 +2,44 @@
 #include "circular_buffer.h"
 
 
+void look_for_data_and_print(QueueSetHandle_t *q_set){
+    QueueSetMemberHandle_t which_queue;
+    BaseType_t q_ready;
+    struct FilterSample sample;
+    struct tm timeinfo;
+    char buff[32];
+
+    // read from set queue
+    which_queue = xQueueSelectFromSet(*q_set, 1);
+
+    if(which_queue != NULL) {
+        // keep trying if queue is empty
+        do { q_ready = xQueueReceive(which_queue, (void *) &sample, 20); } while(!q_ready);
+
+        localtime_r(&(sample.timestamp), &timeinfo);
+        strftime(buff, sizeof(buff), "%c", &timeinfo);
+        printf("%s has set %f value. The last sample was taken in %s\n", sample.name, sample.sample, buff);
+    }
+}
+
+
 void sensorTask(void *pvparameters){
     struct SensorArgs *args = (struct SensorArgs *) pvparameters;
     struct SensorSample sample;
     BaseType_t is_write;
-    time_t now;
+    int32_t random;
 
     for(;;){
-        // just takes values inside int32_t [INT32_MIN, INT32_MAX]
-        sample.sample = (int32_t) esp_random();
-        time(&now);
-        localtime_r(&now, &sample.timestamp);
+        random = (int32_t) esp_random();
+        // just takes values inside float (0, FLT_MAX_EXP)
+        sample.sample = random % FLT_MAX_EXP;
+        // add sign (FLT_MIN_EXP, FLT_MAX_EXP)
+        if(random < 0) sample.sample = -sample.sample;
+
+        time(&(sample.timestamp));
 
         // keep trying if queue is full
-        do { is_write = xQueueSendToFront(args->queue, (void *) &sample, 20); } while(!is_write);
+        do { is_write = xQueueSendToFront(*(args->queue), (void *) &sample, 20); } while(!is_write);
 
         vTaskDelay(args->milis);
     }
@@ -35,7 +59,7 @@ void filterTask(void *pvparameters){
 
     for(;;){
         // keep trying if queue is empty
-        do { q_ready = xQueueReceive(args->in_queue, (void *) &sensor_sample, 20); } while(!q_ready);
+        do { q_ready = xQueueReceive(*(args->in_queue), (void *) &sensor_sample, 20); } while(!q_ready);
         set_element(&queue, sensor_sample);
 
         if(buffer_elements(&queue) == queue.size) {
@@ -48,7 +72,7 @@ void filterTask(void *pvparameters){
             sample.name = pcTaskGetTaskName(NULL);
 
             // keep trying if queue is full
-            do { q_ready = xQueueSendToFront(args->out_queue, (void *) &sample, 20); } while(!q_ready);
+            do { q_ready = xQueueSendToFront(*(args->out_queue), (void *) &sample, 20); } while(!q_ready);
         }
     }
 
@@ -56,32 +80,25 @@ void filterTask(void *pvparameters){
     vTaskDelete(NULL);
 }
 
+
 /*
  * Example of QueueSet which allows manage multiple queues: 
  * https://github.com/FreeRTOS/FreeRTOS/blob/master/FreeRTOS/Demo/Common/Minimal/QueueSet.c
  */
 void controllerTask(void *pvparameters){
     QueueSetHandle_t *q_set = (QueueSetHandle_t *) pvparameters;
-    QueueSetMemberHandle_t which_queue;
-    BaseType_t q_ready;
-    struct FilterSample sample;
-    char buff[1024];
+    char buff[512];
+    
 
     for(;;){
-        // read from set queue
-        which_queue = xQueueSelectFromSet(q_set, 1);
-
-        if(which_queue != NULL) {
-            // keep trying if queue is empty
-            do { q_ready = xQueueReceive(which_queue, (void *) &sample, 20); } while(!q_ready);
-
-            strftime(buff, sizeof(buff), "%c", &sample.timestamp);
-            printf("%s has set %5.4f value. The last sample was taken in %s\n", sample.name, sample.sample, buff);
-        }
+        // call twice cause we are waiting two queues, in other case, 
+        // this will always show just filterTask1 data
+        look_for_data_and_print(q_set);
+        look_for_data_and_print(q_set);
 
         // print system tasks info
         printf("\n---------------------------------\n");
-        vTaskGetRunTimeStats(&buff);
+        vTaskGetRunTimeStats(buff);
         printf("%s\n", buff);
 
         vTaskDelay(CONTROLLER_SLEEP);
@@ -92,6 +109,8 @@ void controllerTask(void *pvparameters){
 
 
 void app_main() {
+    printf("\napp_main priority: %i\n", uxTaskPriorityGet(NULL));
+
     // create input args
     struct SensorArgs s_args1, s_args2;
     struct FilterArgs f_args1, f_args2;
@@ -121,10 +140,10 @@ void app_main() {
     xQueueAddToSet(f_queue1, q_set);
     xQueueAddToSet(f_queue2, q_set);
 
-    xTaskCreatePinnedToCore(&sensorTask, "sensorTask1", 2048, &s_args1, 5, NULL, 0);
-    xTaskCreatePinnedToCore(&sensorTask, "sensorTask2", 2048, &s_args2, 5, NULL, 0);
-    xTaskCreatePinnedToCore(&filterTask, "filterTask1", 2048, &f_args1, 5, NULL, 1);
-    xTaskCreatePinnedToCore(&filterTask, "filterTask2", 2048, &f_args2, 5, NULL, 1);
+    xTaskCreatePinnedToCore(&sensorTask, "sensorTask1", 1024, &s_args1, 5, NULL, 0);
+    xTaskCreatePinnedToCore(&sensorTask, "sensorTask2", 1024, &s_args2, 5, NULL, 0);
+    xTaskCreatePinnedToCore(&filterTask, "filterTask1", 1024, &f_args1, 5, NULL, 1);
+    xTaskCreatePinnedToCore(&filterTask, "filterTask2", 1024, &f_args2, 5, NULL, 1);
     xTaskCreatePinnedToCore(&controllerTask, "controllerTask", 2048, &q_set, 5, NULL, 1);
 
     while(1) { vTaskDelay(1000); }
