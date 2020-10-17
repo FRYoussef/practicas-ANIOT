@@ -16,7 +16,7 @@ void free_buffer(struct CircularBuffer *queue){
     free(queue->values);
 }
 
-int32_t size_buffer(struct CircularBuffer *queue){
+int32_t buffer_elements(struct CircularBuffer *queue){
     return queue->counter;
 }
 

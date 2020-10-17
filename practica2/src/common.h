@@ -27,6 +27,7 @@ typedef struct SensorSample {
 };
 
 typedef struct FilterSample {
+   char *name;
    float sample;
    struct tm timestamp;
 };
