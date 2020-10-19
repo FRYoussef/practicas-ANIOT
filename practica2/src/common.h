@@ -8,7 +8,7 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
-#define QUEUE_SET_SIZE (QUEUE_SIZE + QUEUE_SIZE)
+#define QUEUE_SET_SIZE (CONFIG_QUEUE_SIZE + CONFIG_QUEUE_SIZE)
 static float WEIGHTS[] = {0.05, 0.1, 0.15, 0.25, 0.45};
 
 typedef struct SensorArgs {
