@@ -9,4 +9,14 @@ menu "PR2 configuration"
     range 1 10000
     default 100
 
+    config QUEUE_SIZE
+    int "The size of the queue events"
+    range 1 20
+    default 5
+
+    config TASK_INFO_DELAY
+    int "Task information delay"
+    range 100 10000
+    default 1000
+
 endmenu
