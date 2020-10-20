@@ -13,7 +13,7 @@ void sensorTask(void *pvparameters){
         // just takes values inside float (0, FLT_MAX_EXP)
         sample.sample = random % FLT_MAX_EXP;
         // add sign (FLT_MIN_EXP, FLT_MAX_EXP)
-        if(random < 0) sample.sample *= -1;
+        if(random < 0) sample.sample = -sample.sample;
 
         time(&(sample.timestamp));
 
