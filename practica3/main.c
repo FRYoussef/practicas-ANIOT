@@ -1,5 +1,4 @@
 #include <stdio.h>
-
 #include "contiki.h"
 #include "sys/etimer.h"
 #include "sys/ctimer.h"
@@ -18,16 +17,16 @@ static struct ctimer timer_ctimer;
 static process_event_t process1_event;
 static process_event_t process2_event;
 
+
 void do_callback() {
   process_post(&process1, process2_event, NULL);
   printf("Callback timer timeout\n");
   ctimer_reset(&timer_ctimer);
 }
-/*---------------------------------------------------------------------------*/
+
+
 PROCESS_THREAD(process1, ev, data)
 {
-  static struct etimer timer_etimer;
-
   PROCESS_BEGIN();
 
   process1_event = process_alloc_event();
@@ -43,13 +42,14 @@ PROCESS_THREAD(process1, ev, data)
     }
     else if (ev == process2_event){
       counter_event2++;
-      printf("Process1 has received %i from Process2\n", counter_event2);
+      printf("Process1 has received %i events from Process2\n", counter_event2);
     }
   }
 
   PROCESS_END();
 }
-/*---------------------------------------------------------------------------*/
+
+
 PROCESS_THREAD(process2, ev, data)
 {
   PROCESS_BEGIN();
@@ -60,7 +60,7 @@ PROCESS_THREAD(process2, ev, data)
   while(1) {
     PROCESS_WAIT_EVENT_UNTIL(ev == process1_event);
     counter_event1++;
-    printf("Process2 has received %i from Process1\n", counter_event1);
+    printf("Process2 has received %i events from Process1\n", counter_event1);
   }
 
   PROCESS_END();
