@@ -2,8 +2,8 @@
 #define _COMMON_
 
 #include <stdio.h>
-#include <time.h>
 #include <float.h>
+#include <time.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -35,6 +35,5 @@ typedef struct FilterSample {
 void sensorTask(void *pvparameters);
 void filterTask(void *pvparameters);
 void controllerTask(void *pvparameters);
-void filterEventHandlerTask(void *pvparameters);
 
 #endif

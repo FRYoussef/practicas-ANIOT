@@ -15,8 +15,8 @@ menu "PR2 configuration"
     default 5
 
     config TASK_INFO_DELAY
-    int "Task information delay"
-    range 100 10000
-    default 1000
+    int "Task information delay in seconds"
+    range 1 100
+    default 10
 
 endmenu
