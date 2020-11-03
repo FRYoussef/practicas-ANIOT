@@ -119,6 +119,14 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
+# PR4 configuration
+#
+CONFIG_QUEUE_SIZE=5
+CONFIG_CHRONO_TIME=1000
+CONFIG_RESET_POLLING_TIME=100
+# end of PR4 configuration
+
+#
 # Compiler options
 #
 CONFIG_COMPILER_OPTIMIZATION_DEFAULT=y
