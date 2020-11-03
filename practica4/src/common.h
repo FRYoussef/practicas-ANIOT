@@ -11,8 +11,8 @@
 #include "driver/gpio.h"
 #include "driver/touch_pad.h"
 
-#define EV_START 1
-#define EV_STOP 2
+#define EV_ONE_SEC 1
+#define EV_START_STOP 2
 #define EV_RESTART 3
 
 #define ST_INI 1
@@ -33,6 +33,12 @@
 
 static uint32_t pad_val;
 
+typedef struct TaskSignals {
+   QueueHandle_t queue;
+   SemaphoreHandle_t sem;
+};
+
+void eventTaskLogic(uint32_t ev, struct TaskSignals signals);
 void touchSensorTask(void *pvparameters);
 void timerTask(void *pvparameters);
 void FSMTask(void *pvparameters);
