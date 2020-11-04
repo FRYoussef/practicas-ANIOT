@@ -71,8 +71,12 @@ void chronoCallback() {
 
 
 void resetTimerCallback() {
+    BaseType_t q_ready;
 
-    // TODO
+    if(hall_sensor_read() < CONFIG_HALL_THRESHOLD) {
+        // keep trying if queue is full
+        do { q_ready = xQueueSendToFront(event_queue, (void *) EV_RESTART, 100); } while(!q_ready);
+    }
 }
 
 
@@ -83,9 +87,12 @@ void app_main() {
     SemaphoreHandle_t touchSensorSem = xSemaphoreCreateBinary();
     SemaphoreHandle_t timerSem = xSemaphoreCreateBinary();
 
-    // block semaphores
+    // blocks semaphores
     xSemaphoreTake(touchSensorSem, 100);
     xSemaphoreTake(timerSem, 100);
+
+    // mandatory for hall sensor
+    adc1_config_width(ADC_WIDTH_BIT_12);
 
     // gpio configuration
     // output pin

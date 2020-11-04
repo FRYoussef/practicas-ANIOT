@@ -10,6 +10,7 @@
 #include "esp_intr_alloc.h"
 #include "driver/gpio.h"
 #include "driver/touch_pad.h"
+#include "driver/adc.h"
 
 #define EV_ONE_SEC 1
 #define EV_START_STOP 2
