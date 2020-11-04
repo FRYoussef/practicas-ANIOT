@@ -1,7 +1,7 @@
-#include "common.h"
+#include "fsm/fsm.h"
 
 
-void eventTaskLogic(uint32_t ev, QueueHandle_t queue, SemaphoreHandle_t sem) {
+void eventTaskLogic(enum fsm_event ev, QueueHandle_t queue, SemaphoreHandle_t sem) {
     BaseType_t q_ready;
 
     while(1) {
@@ -16,18 +16,33 @@ void eventTaskLogic(uint32_t ev, QueueHandle_t queue, SemaphoreHandle_t sem) {
 
 void timerTask(void *pvparameters) {
     SemaphoreHandle_t *sem = (SemaphoreHandle_t *) pvparameters;
-    eventTaskLogic(EV_ONE_SEC, event_queue, *sem);
+    eventTaskLogic(one_sec, event_queue, *sem);
 }
 
 
 void touchSensorTask(void *pvparameters) {
     SemaphoreHandle_t *sem = (SemaphoreHandle_t *) pvparameters;
-    eventTaskLogic(EV_START_STOP, event_queue, *sem);
+    eventTaskLogic(start_stop, event_queue, *sem);
 }
 
 
 void FSMTask(void *pvparameters) {
-    //TODO
+    enum fsm_state state = initial;
+    enum fsm_event ev;
+    BaseType_t q_ready;
+    int seconds;
+    void (* foo)(int*);
+
+    while(1) {
+        do { q_ready = xQueueReceive(event_queue, (void *) &ev, 1000); } while(!q_ready);
+
+        // next state
+        state = state_transitions[state][ev];
+        
+        // event function
+        foo = state_foo[state];
+        foo(seconds);
+    }
 }
 
 
@@ -75,8 +90,18 @@ void resetTimerCallback() {
 
     if(hall_sensor_read() < CONFIG_HALL_THRESHOLD) {
         // keep trying if queue is full
-        do { q_ready = xQueueSendToFront(event_queue, (void *) EV_RESTART, 100); } while(!q_ready);
+        do { q_ready = xQueueSendToFront(event_queue, (void *) reset, 100); } while(!q_ready);
     }
+}
+
+
+void printChrono(int seconds) {
+    int ss, mm;
+
+    ss = seconds % 60;
+    mm = seconds / 60;
+
+    printf("%d:%d\n", mm, ss);
 }
 
 

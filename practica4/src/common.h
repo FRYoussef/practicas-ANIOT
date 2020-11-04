@@ -12,14 +12,6 @@
 #include "driver/touch_pad.h"
 #include "driver/adc.h"
 
-#define EV_ONE_SEC 1
-#define EV_START_STOP 2
-#define EV_RESTART 3
-
-#define ST_INI 1
-#define ST_RUNNING 2
-#define ST_STOPED 3
-
 #define CHRONO_TIMER_ID 1
 #define RESET_TIMER_ID 2
 
@@ -35,8 +27,7 @@
 static uint32_t pad_val;
 static QueueHandle_t event_queue;
 
-
-void eventTaskLogic(uint32_t ev, QueueHandle_t queue, SemaphoreHandle_t sem);
+void eventTaskLogic(enum fsm_event ev, QueueHandle_t queue, SemaphoreHandle_t sem);
 void touchSensorTask(void *pvparameters);
 void timerTask(void *pvparameters);
 void FSMTask(void *pvparameters);
@@ -46,5 +37,7 @@ static void touchSensorIsr(void *args);
 
 void chronoCallback();
 void resetTimerCallback();
+
+void printChrono(int seconds);
 
 #endif
