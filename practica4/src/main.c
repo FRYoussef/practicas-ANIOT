@@ -1,7 +1,6 @@
-#include "fsm/fsm.h"
+#include "common.h"
 
-
-void eventTaskLogic(enum fsm_event ev, QueueHandle_t queue, SemaphoreHandle_t sem) {
+void eventTaskLogic(fsm_event ev, QueueHandle_t queue, SemaphoreHandle_t sem) {
     BaseType_t q_ready;
 
     while(1) {
@@ -27,8 +26,8 @@ void touchSensorTask(void *pvparameters) {
 
 
 void FSMTask(void *pvparameters) {
-    enum fsm_state state = initial;
-    enum fsm_event ev;
+    fsm_state state = initial;
+    fsm_event ev;
     BaseType_t q_ready;
     int seconds;
     void (* foo)(int*);
@@ -41,7 +40,7 @@ void FSMTask(void *pvparameters) {
         
         // event function
         foo = state_foo[state];
-        foo(seconds);
+        foo(&seconds);
     }
 }
 
@@ -95,16 +94,6 @@ void resetTimerCallback() {
 }
 
 
-void printChrono(int seconds) {
-    int ss, mm;
-
-    ss = seconds % 60;
-    mm = seconds / 60;
-
-    printf("%d:%d\n", mm, ss);
-}
-
-
 void app_main() {
     int32_t prio = uxTaskPriorityGet(NULL);
 
@@ -152,18 +141,18 @@ void app_main() {
     touch_pad_intr_enable();
 
     // timers configuration
-    TimerHandle_t chrono = xTimerCreate("chrono",    // Just a text name, not used by the kernel.
-                         ( CONFIG_CHRONO_TIME * portTICK_PERIOD_MS ),   // The timer period in ticks.
-                         pdTRUE,        // The timers will auto-reload themselves when they expire.
-                         ( void * ) CHRONO_TIMER_ID,  // Assign each timer a unique id equal to its array index.
-                         chronoCallback // Each timer calls the same callback when it expires.
+    xTimerCreate("chrono",    // Just a text name, not used by the kernel.
+                ( CONFIG_CHRONO_TIME * portTICK_PERIOD_MS ),   // The timer period in ticks.
+                pdTRUE,        // The timers will auto-reload themselves when they expire.
+                ( void * ) CHRONO_TIMER_ID,  // Assign each timer a unique id equal to its array index.
+                chronoCallback // Each timer calls the same callback when it expires.
     );
 
-    TimerHandle_t resetTimer = xTimerCreate("resetTimer",    // Just a text name, not used by the kernel.
-                             ( CONFIG_CHRONO_TIME * portTICK_PERIOD_MS ),   // The timer period in ticks.
-                             pdTRUE,        // The timers will auto-reload themselves when they expire.
-                             ( void * ) RESET_TIMER_ID,  // Assign each timer a unique id equal to its array index.
-                             resetTimerCallback // Each timer calls the same callback when it expires.
+    xTimerCreate("resetTimer",    // Just a text name, not used by the kernel.
+                ( CONFIG_CHRONO_TIME * portTICK_PERIOD_MS ),   // The timer period in ticks.
+                pdTRUE,        // The timers will auto-reload themselves when they expire.
+                ( void * ) RESET_TIMER_ID,  // Assign each timer a unique id equal to its array index.
+                resetTimerCallback // Each timer calls the same callback when it expires.
     );
 
     // tasks configutation
