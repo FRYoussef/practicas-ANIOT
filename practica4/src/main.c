@@ -1,34 +1,32 @@
 #include "common.h"
 
 
-void eventTaskLogic(uint32_t ev, struct TaskSignals signals) {
+void eventTaskLogic(uint32_t ev, QueueHandle_t queue, SemaphoreHandle_t sem) {
     BaseType_t q_ready;
 
     while(1) {
         // wait till sem is released
-        do { q_ready = xSemaphoreTake(signals.sem, 100 ); } while(!q_ready);
+        do { q_ready = xSemaphoreTake(sem, 100 ); } while(!q_ready);
 
         // keep trying if queue is full
-        do { q_ready = xQueueSendToFront(signals.queue, (void *) ev, 100); } while(!q_ready);
+        do { q_ready = xQueueSendToFront(queue, (void *) ev, 100); } while(!q_ready);
     }
 }
 
 
 void timerTask(void *pvparameters) {
-    struct TaskSignals *signals = (struct TaskSignals *) pvparameters;
-    eventTaskLogic(EV_ONE_SEC, *signals);
+    SemaphoreHandle_t *sem = (SemaphoreHandle_t *) pvparameters;
+    eventTaskLogic(EV_ONE_SEC, event_queue, *sem);
 }
 
 
 void touchSensorTask(void *pvparameters) {
-    struct TaskSignals *signals = (struct TaskSignals *) pvparameters;
-    eventTaskLogic(EV_ONE_SEC, *signals);
+    SemaphoreHandle_t *sem = (SemaphoreHandle_t *) pvparameters;
+    eventTaskLogic(EV_START_STOP, event_queue, *sem);
 }
 
 
 void FSMTask(void *pvparameters) {
-    QueueHandle_t *queue = (QueueHandle_t *) pvparameters;
-
     //TODO
 }
 
@@ -36,6 +34,9 @@ void FSMTask(void *pvparameters) {
 static void IRAM_ATTR timerIsr(void *args) {
     SemaphoreHandle_t *timerSem = (SemaphoreHandle_t *) args;
     BaseType_t hpTask = pdFALSE;
+
+    // remove intr
+    gpio_set_level(GPIO_OUTPUT_IO_0, 0);
 
     xSemaphoreGiveFromISR(timerSem, &hpTask);
 
@@ -45,7 +46,7 @@ static void IRAM_ATTR timerIsr(void *args) {
 
 
 static void touchSensorIsr(void *args) {
-    SemaphoreHandle_t sem = (SemaphoreHandle_t) args;
+    SemaphoreHandle_t *sem = (SemaphoreHandle_t *) args;
     BaseType_t hpTask = pdFALSE;
     bool activated = false;
     uint32_t pad_intr = touch_pad_get_status();
@@ -65,7 +66,7 @@ static void touchSensorIsr(void *args) {
 
 
 void chronoCallback() {
-    // TODO
+    gpio_set_level(GPIO_OUTPUT_IO_0, 1);
 }
 
 
@@ -78,16 +79,9 @@ void resetTimerCallback() {
 void app_main() {
     int32_t prio = uxTaskPriorityGet(NULL);
 
-    QueueHandle_t event_queue = xQueueCreate(CONFIG_QUEUE_SIZE, sizeof(unsigned char));
+    event_queue = xQueueCreate(CONFIG_QUEUE_SIZE, sizeof(unsigned char));
     SemaphoreHandle_t touchSensorSem = xSemaphoreCreateBinary();
     SemaphoreHandle_t timerSem = xSemaphoreCreateBinary();
-    struct TaskSignals touch_sig, timer_sig;
-
-    touch_sig.queue = event_queue;
-    touch_sig.sem = touchSensorSem;
-
-    timer_sig.queue = event_queue;
-    timer_sig.sem = timerSem;
 
     // block semaphores
     xSemaphoreTake(touchSensorSem, 100);
@@ -100,7 +94,7 @@ void app_main() {
     io_conf.mode = GPIO_MODE_OUTPUT;
     io_conf.pin_bit_mask = GPIO_OUTPUT_PIN_SEL;
     io_conf.pull_down_en = 0;
-    io_conf.pull_up_en= 0;
+    io_conf.pull_up_en = 0;
     gpio_config(&io_conf);
 
     //input pin
@@ -141,8 +135,8 @@ void app_main() {
     );
 
     // tasks configutation
-    xTaskCreatePinnedToCore(&touchSensorTask, "touchSensorTask", 1024, &touch_sig, prio, NULL, 0);
-    xTaskCreatePinnedToCore(&timerTask, "timerTask", 1024, &timer_sig, prio, NULL, 0);
+    xTaskCreatePinnedToCore(&touchSensorTask, "touchSensorTask", 1024, &touchSensorSem, prio, NULL, 0);
+    xTaskCreatePinnedToCore(&timerTask, "timerTask", 1024, &timerSem, prio, NULL, 0);
     xTaskCreatePinnedToCore(&FSMTask, "FSMTask", 3096, &event_queue, prio, NULL, 1);
 
     while(1) { vTaskDelay(1000); }

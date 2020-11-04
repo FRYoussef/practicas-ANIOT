@@ -32,13 +32,10 @@
 #define GPIO_INPUT_PIN_SEL (1ULL<<GPIO_INPUT_IO_0)
 
 static uint32_t pad_val;
+static QueueHandle_t event_queue;
 
-typedef struct TaskSignals {
-   QueueHandle_t queue;
-   SemaphoreHandle_t sem;
-};
 
-void eventTaskLogic(uint32_t ev, struct TaskSignals signals);
+void eventTaskLogic(uint32_t ev, QueueHandle_t queue, SemaphoreHandle_t sem);
 void touchSensorTask(void *pvparameters);
 void timerTask(void *pvparameters);
 void FSMTask(void *pvparameters);
