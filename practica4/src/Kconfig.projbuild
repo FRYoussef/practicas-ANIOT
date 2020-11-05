@@ -5,14 +5,14 @@ menu "PR4 configuration"
     default 5
 
     config CHRONO_TIME
-    int "The chronometer time in ms"
-    range 100 100000
-    default 1000
+    int "Chronometer time in microseconds"
+    range 100 10000000
+    default 1000000
 
     config RESET_POLLING_TIME
-    int "Reset polling time in ms"
-    range 100 100000
-    default 100
+    int "Reset polling time in microseconds"
+    range 100 10000000
+    default 1000
 
     config HALL_THRESHOLD
     int "Hall sensor threshold"

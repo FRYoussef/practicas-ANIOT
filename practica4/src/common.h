@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/timers.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
 #include "esp_intr_alloc.h"
@@ -12,6 +11,7 @@
 #include "driver/touch_pad.h"
 #include "driver/adc.h"
 #include "fsm/fsm.h"
+#include "esp_timer.h"
 
 #define CHRONO_TIMER_ID 1
 #define RESET_TIMER_ID 2
@@ -26,7 +26,11 @@
 #define GPIO_INPUT_PIN_SEL (1ULL<<GPIO_INPUT_IO_0)
 
 static uint32_t pad_val;
-static QueueHandle_t event_queue;
+
+struct Signal {
+    QueueHandle_t queue;
+    SemaphoreHandle_t sem;
+};
 
 void eventTaskLogic(fsm_event ev, QueueHandle_t queue, SemaphoreHandle_t sem);
 void touchSensorTask(void *pvparameters);
@@ -36,7 +40,7 @@ void FSMTask(void *pvparameters);
 static void IRAM_ATTR timerIsr(void *args);
 static void touchSensorIsr(void *args);
 
-void chronoCallback();
-void resetTimerCallback();
+static void chronoCallback(void*);
+static void resetTimerCallback(void*);
 
 #endif

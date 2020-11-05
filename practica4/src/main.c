@@ -14,18 +14,24 @@ void eventTaskLogic(fsm_event ev, QueueHandle_t queue, SemaphoreHandle_t sem) {
 
 
 void timerTask(void *pvparameters) {
-    SemaphoreHandle_t *sem = (SemaphoreHandle_t *) pvparameters;
-    eventTaskLogic(one_sec, event_queue, *sem);
+    printf("timerTask\n");
+    struct Signal *signals = (struct Signal *) pvparameters;
+    eventTaskLogic(one_sec, signals->queue, signals->sem);
+    vTaskDelete(NULL);
 }
 
 
 void touchSensorTask(void *pvparameters) {
-    SemaphoreHandle_t *sem = (SemaphoreHandle_t *) pvparameters;
-    eventTaskLogic(start_stop, event_queue, *sem);
+    printf("touchSensorTask\n");
+    struct Signal *signals = (struct Signal *) pvparameters;
+    eventTaskLogic(start_stop, signals->queue, signals->sem);
+    vTaskDelete(NULL);
 }
 
 
 void FSMTask(void *pvparameters) {
+    printf("FSMTask\n");
+    QueueHandle_t *event_queue = (QueueHandle_t *) pvparameters;
     fsm_state state = initial;
     fsm_event ev;
     BaseType_t q_ready;
@@ -33,7 +39,7 @@ void FSMTask(void *pvparameters) {
     void (* foo)(int*);
 
     while(1) {
-        do { q_ready = xQueueReceive(event_queue, (void *) &ev, 1000); } while(!q_ready);
+        do { q_ready = xQueueReceive(*event_queue, (void *) &ev, 1000); } while(!q_ready);
 
         // next state
         state = state_transitions[state][ev];
@@ -42,15 +48,17 @@ void FSMTask(void *pvparameters) {
         foo = state_foo[state];
         foo(&seconds);
     }
+    vTaskDelete(NULL);
 }
 
 
 static void IRAM_ATTR timerIsr(void *args) {
+    printf("timerIsr\n");
     SemaphoreHandle_t *timerSem = (SemaphoreHandle_t *) args;
     BaseType_t hpTask = pdFALSE;
 
     // remove intr
-    gpio_set_level(GPIO_OUTPUT_IO_0, 0);
+    gpio_set_level(GPIO_OUTPUT_IO_0, 1);
 
     xSemaphoreGiveFromISR(timerSem, &hpTask);
 
@@ -60,6 +68,7 @@ static void IRAM_ATTR timerIsr(void *args) {
 
 
 static void touchSensorIsr(void *args) {
+    printf("touchSensorIsr\n");
     SemaphoreHandle_t *sem = (SemaphoreHandle_t *) args;
     BaseType_t hpTask = pdFALSE;
     bool activated = false;
@@ -79,17 +88,17 @@ static void touchSensorIsr(void *args) {
 }
 
 
-void chronoCallback() {
-    gpio_set_level(GPIO_OUTPUT_IO_0, 1);
+static void chronoCallback(void *arg) {
+    gpio_set_level(GPIO_OUTPUT_IO_0, 0);
 }
 
 
-void resetTimerCallback() {
-    BaseType_t q_ready;
+static void resetTimerCallback(void *arg) {
+    QueueHandle_t *event_queue = (QueueHandle_t *) arg;
 
     if(hall_sensor_read() < CONFIG_HALL_THRESHOLD) {
         // keep trying if queue is full
-        do { q_ready = xQueueSendToFront(event_queue, (void *) reset, 100); } while(!q_ready);
+        xQueueSendToFront(*event_queue, (void *) reset, 100);
     }
 }
 
@@ -97,13 +106,19 @@ void resetTimerCallback() {
 void app_main() {
     int32_t prio = uxTaskPriorityGet(NULL);
 
-    event_queue = xQueueCreate(CONFIG_QUEUE_SIZE, sizeof(unsigned char));
+    QueueHandle_t event_queue = xQueueCreate(CONFIG_QUEUE_SIZE, sizeof(unsigned char));
     SemaphoreHandle_t touchSensorSem = xSemaphoreCreateBinary();
     SemaphoreHandle_t timerSem = xSemaphoreCreateBinary();
+    struct Signal touchSignals, timerSignals;
 
     // blocks semaphores
     xSemaphoreTake(touchSensorSem, 100);
     xSemaphoreTake(timerSem, 100);
+
+    touchSignals.queue = event_queue;
+    touchSignals.sem = touchSensorSem;
+    timerSignals.queue = event_queue;
+    timerSignals.sem = timerSem;
 
     // mandatory for hall sensor
     adc1_config_width(ADC_WIDTH_BIT_12);
@@ -141,24 +156,34 @@ void app_main() {
     touch_pad_intr_enable();
 
     // timers configuration
-    xTimerCreate("chrono",    // Just a text name, not used by the kernel.
-                ( CONFIG_CHRONO_TIME * portTICK_PERIOD_MS ),   // The timer period in ticks.
-                pdTRUE,        // The timers will auto-reload themselves when they expire.
-                ( void * ) CHRONO_TIMER_ID,  // Assign each timer a unique id equal to its array index.
-                chronoCallback // Each timer calls the same callback when it expires.
-    );
+    const esp_timer_create_args_t chrono_args = {
+        .callback = &chronoCallback,
+        .name = "chrono_timer"
+    };
+    const esp_timer_create_args_t reset_args = {
+        .callback = &resetTimerCallback,
+        .arg = (void *) event_queue,
+        .name = "reset_timer"
+    };
 
-    xTimerCreate("resetTimer",    // Just a text name, not used by the kernel.
-                ( CONFIG_CHRONO_TIME * portTICK_PERIOD_MS ),   // The timer period in ticks.
-                pdTRUE,        // The timers will auto-reload themselves when they expire.
-                ( void * ) RESET_TIMER_ID,  // Assign each timer a unique id equal to its array index.
-                resetTimerCallback // Each timer calls the same callback when it expires.
-    );
+    esp_timer_handle_t chrono_timer, reset_timer;
+    esp_timer_create(&chrono_args, &chrono_timer);
+    esp_timer_create(&reset_args, &reset_timer);
 
     // tasks configutation
-    xTaskCreatePinnedToCore(&touchSensorTask, "touchSensorTask", 1024, &touchSensorSem, prio, NULL, 0);
-    xTaskCreatePinnedToCore(&timerTask, "timerTask", 1024, &timerSem, prio, NULL, 0);
-    xTaskCreatePinnedToCore(&FSMTask, "FSMTask", 3096, &event_queue, prio, NULL, 1);
+    xTaskCreatePinnedToCore(&touchSensorTask, "touchSensorTask", 2048, &touchSignals, prio, NULL, 0);
+    xTaskCreatePinnedToCore(&timerTask, "timerTask", 2048, &timerSignals, prio, NULL, 0);
+    xTaskCreatePinnedToCore(&FSMTask, "FSMTask", 4096, &event_queue, prio, NULL, 1);
+
+    // start timers
+    esp_timer_start_periodic(chrono_timer, CONFIG_CHRONO_TIME);
+    esp_timer_start_periodic(reset_timer, CONFIG_RESET_POLLING_TIME);
 
     while(1) { vTaskDelay(1000); }
+
+    esp_timer_delete(chrono_timer);
+    esp_timer_delete(reset_timer);
+    vQueueDelete(event_queue);
+    vSemaphoreDelete(touchSensorSem);
+    vSemaphoreDelete(timerSem);
 }
