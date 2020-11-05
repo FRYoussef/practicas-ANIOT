@@ -14,7 +14,6 @@ void eventTaskLogic(fsm_event ev, QueueHandle_t queue, SemaphoreHandle_t sem) {
 
 
 void timerTask(void *pvparameters) {
-    printf("timerTask\n");
     struct Signal *signals = (struct Signal *) pvparameters;
     eventTaskLogic(one_sec, signals->queue, signals->sem);
     vTaskDelete(NULL);
@@ -22,7 +21,6 @@ void timerTask(void *pvparameters) {
 
 
 void touchSensorTask(void *pvparameters) {
-    printf("touchSensorTask\n");
     struct Signal *signals = (struct Signal *) pvparameters;
     eventTaskLogic(start_stop, signals->queue, signals->sem);
     vTaskDelete(NULL);
@@ -30,7 +28,6 @@ void touchSensorTask(void *pvparameters) {
 
 
 void FSMTask(void *pvparameters) {
-    printf("FSMTask\n");
     QueueHandle_t *event_queue = (QueueHandle_t *) pvparameters;
     fsm_state state = initial;
     fsm_event ev;
@@ -53,7 +50,6 @@ void FSMTask(void *pvparameters) {
 
 
 static void IRAM_ATTR timerIsr(void *args) {
-    printf("timerIsr\n");
     SemaphoreHandle_t *timerSem = (SemaphoreHandle_t *) args;
     BaseType_t hpTask = pdFALSE;
 
@@ -68,7 +64,6 @@ static void IRAM_ATTR timerIsr(void *args) {
 
 
 static void touchSensorIsr(void *args) {
-    printf("touchSensorIsr\n");
     SemaphoreHandle_t *sem = (SemaphoreHandle_t *) args;
     BaseType_t hpTask = pdFALSE;
     bool activated = false;
