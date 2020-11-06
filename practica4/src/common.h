@@ -26,18 +26,20 @@
 #define GPIO_INPUT_PIN_SEL (1ULL<<GPIO_INPUT_IO_0)
 
 static uint32_t pad_val;
+static fsm_event reset_ev = reset;
+static char pin_state = 1;
 
-struct Signal {
-    QueueHandle_t queue;
-    SemaphoreHandle_t sem;
+typedef struct Signal {
+    QueueHandle_t *queue;
+    SemaphoreHandle_t *sem;
 };
 
-void eventTaskLogic(fsm_event ev, QueueHandle_t queue, SemaphoreHandle_t sem);
+void eventTaskLogic(fsm_event *ev, struct Signal *signals);
 void touchSensorTask(void *pvparameters);
 void timerTask(void *pvparameters);
 void FSMTask(void *pvparameters);
 
-static void IRAM_ATTR timerIsr(void *args);
+static void IRAM_ATTR timer_isr_handler(void *arg);
 static void touchSensorIsr(void *args);
 
 static void chronoCallback(void*);

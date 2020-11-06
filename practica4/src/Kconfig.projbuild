@@ -12,7 +12,7 @@ menu "PR4 configuration"
     config RESET_POLLING_TIME
     int "Reset polling time in microseconds"
     range 100 10000000
-    default 1000
+    default 10000
 
     config HALL_THRESHOLD
     int "Hall sensor threshold"
