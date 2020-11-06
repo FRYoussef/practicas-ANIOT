@@ -64,20 +64,20 @@ static void IRAM_ATTR timer_isr_handler(void *arg) {
 static void touchSensorIsr(void *args) {
     SemaphoreHandle_t *sem = (SemaphoreHandle_t *) args;
     BaseType_t hpTask = pdFALSE;
-    bool activated = false;
-    uint32_t pad_intr = touch_pad_get_status();
+    // bool activated = false;
+    // uint32_t pad_intr = touch_pad_get_status();
     touch_pad_clear_status();
 
-    for (int i = 0; i < TOUCH_PAD_MAX; i++)
-        if ((pad_intr >> i) & 0x01)
-                activated |= true;
+    // for (int i = 0; i < TOUCH_PAD_MAX; i++)
+    //     if ((pad_intr >> i) & 0x01)
+    //             activated |= true;
 
-    if (activated) {
+    // if (activated) {
         xSemaphoreGiveFromISR(*sem, &hpTask);
 
         if (hpTask == pdTRUE)
             portYIELD_FROM_ISR();
-    }
+    //}
 }
 
 
@@ -137,17 +137,16 @@ void app_main() {
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
     gpio_isr_handler_add(GPIO_INPUT_IO_0, timer_isr_handler, (void*) &timerSem);
 
-    // // touch pad configuration
-    // touch_pad_init();
-    // touch_pad_set_fsm_mode(TOUCH_FSM_MODE_TIMER);
+    // touch pad configuration
+    touch_pad_init();
+    touch_pad_set_fsm_mode(TOUCH_FSM_MODE_TIMER);
+    touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
 
-    // for (int i = 0; i< TOUCH_PAD_MAX; i++)
-    //     touch_pad_config(i, 0);
+    touch_pad_config(0, CONFIG_TOUCH_THRESHOLD);
+    touch_pad_filter_start(TOUCHPAD_FILTER_TOUCH_PERIOD);
+    touch_pad_isr_register(touchSensorIsr, &touchSensorSem);
+    touch_pad_intr_enable();
 
-    // touch_pad_filter_start(TOUCHPAD_FILTER_TOUCH_PERIOD);
-    // touch_pad_read_filtered(0, &pad_val);
-    // touch_pad_isr_register(touchSensorIsr, &touchSensorSem);
-    // touch_pad_intr_enable();
 
     // timers configuration
     const esp_timer_create_args_t chrono_args = {

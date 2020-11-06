@@ -1,21 +1,18 @@
 #include "fsm.h"
 
 void initial_foo(int *seconds) {
-    printf("ini\n");
     *seconds = 0;
     printChrono(*seconds);
 }
 
 
 void running_foo(int *seconds) {
-    printf("running\n");
     (*seconds)++;
     printChrono(*seconds);
 }
 
 
 void stopped_foo(int *seconds) {
-    printf("stoppped\n");
     printChrono(*seconds);
 }
 

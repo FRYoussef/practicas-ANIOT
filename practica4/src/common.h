@@ -22,10 +22,10 @@
 #define GPIO_OUTPUT_IO_0 18
 #define GPIO_OUTPUT_PIN_SEL (1ULL<<GPIO_OUTPUT_IO_0)
 
-#define GPIO_INPUT_IO_0 4
+#define GPIO_INPUT_IO_0 16
 #define GPIO_INPUT_PIN_SEL (1ULL<<GPIO_INPUT_IO_0)
 
-static uint32_t pad_val;
+static uint32_t s_pad_init_val[TOUCH_PAD_MAX];
 static fsm_event reset_ev = reset;
 static char pin_state = 1;
 

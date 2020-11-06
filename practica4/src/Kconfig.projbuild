@@ -17,4 +17,9 @@ menu "PR4 configuration"
     config HALL_THRESHOLD
     int "Hall sensor threshold"
     default 0
+
+    config TOUCH_THRESHOLD
+    int "Touchpad threshold to launch the isr"
+    range 0 1000
+    default 200
 endmenu
