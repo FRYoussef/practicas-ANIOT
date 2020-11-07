@@ -1,29 +1,48 @@
 #include "common.h"
 
-void eventTaskLogic(fsm_event *ev, struct Signal *signals) {
+void timerTask(void *pvparameters) {
+    struct Signal *signals = (struct Signal *) pvparameters;
+    static fsm_event ev = one_sec;
+    //eventTaskLogic(&ev, signals);
     BaseType_t q_ready;
 
     while(1) {
         // wait till sem is released
         do { q_ready = xSemaphoreTake(*signals->sem, 1000); } while(!q_ready);
         // keep trying if queue is full
-        do { q_ready = xQueueSendToFront(*signals->queue, (void *) ev, 100); } while(!q_ready);
+        do { q_ready = xQueueSendToFront(*signals->queue, (void *) &ev, 100); } while(!q_ready);
     }
-}
-
-
-void timerTask(void *pvparameters) {
-    struct Signal *signals = (struct Signal *) pvparameters;
-    fsm_event ev = one_sec;
-    eventTaskLogic(&ev, signals);
     vTaskDelete(NULL);
 }
 
 
 void touchSensorTask(void *pvparameters) {
     struct Signal *signals = (struct Signal *) pvparameters;
-    fsm_event ev = start_stop;
-    eventTaskLogic(&ev, signals);
+    static fsm_event ev = start_stop;
+    //eventTaskLogic(&ev, signals);
+    BaseType_t q_ready;
+    int32_t value = 0;
+
+    while(1) {
+        // wait till sem is released
+        do { q_ready = xSemaphoreTake(*signals->sem, 1000); } while(!q_ready);
+
+        // keep trying if queue is full
+        do { q_ready = xQueueSendToFront(*signals->queue, (void *) &ev, 100); } while(!q_ready);
+
+        // wait till touchpad(0) is released
+        touch_pad_read_filtered(0, &value);
+        while(value < (pad0_init - TOUCH_PAD_MARGIN)) {
+            vTaskDelay(BOUNCE_TIME);
+            touch_pad_read_filtered(0, &value);
+        }
+
+        // restore touchpad isr
+        vTaskDelay(BOUNCE_TIME);
+        touch_pad_intr_enable();
+        
+    }
+
     vTaskDelete(NULL);
 }
 
@@ -81,22 +100,16 @@ static void IRAM_ATTR timer_isr_handler(void *arg) {
 
 
 static void touchSensorIsr(void *args) {
+    touch_pad_intr_disable();
+
     SemaphoreHandle_t *sem = (SemaphoreHandle_t *) args;
     BaseType_t hpTask = pdFALSE;
-    // bool activated = false;
-    // uint32_t pad_intr = touch_pad_get_status();
+
     touch_pad_clear_status();
+    xSemaphoreGiveFromISR(*sem, &hpTask);
 
-    // for (int i = 0; i < TOUCH_PAD_MAX; i++)
-    //     if ((pad_intr >> i) & 0x01)
-    //             activated |= true;
-
-    // if (activated) {
-        xSemaphoreGiveFromISR(*sem, &hpTask);
-
-        if (hpTask == pdTRUE)
-            portYIELD_FROM_ISR();
-    //}
+    if (hpTask == pdTRUE)
+        portYIELD_FROM_ISR();
 }
 
 
@@ -154,6 +167,7 @@ void app_main() {
 
     touch_pad_config(0, CONFIG_TOUCH_THRESHOLD);
     touch_pad_filter_start(TOUCHPAD_FILTER_TOUCH_PERIOD);
+    touch_pad_read_filtered(0, &pad0_init);
     touch_pad_isr_register(touchSensorIsr, &touchSensorSem);
     touch_pad_intr_enable();
 
@@ -171,7 +185,11 @@ void app_main() {
     xTaskCreatePinnedToCore(&touchSensorTask, "touchSensorTask", 3096, &touchSignals, prio, NULL, 0);
     xTaskCreatePinnedToCore(&timerTask, "timerTask", 3096, &timerSignals, prio, NULL, 0);
     xTaskCreatePinnedToCore(&FSMTask, "FSMTask", 3096, &event_queue, prio, NULL, 1);
+
+#ifdef CONFIG_ENABLE_HALL_SENSOR
     xTaskCreatePinnedToCore(&hallSensorResetTask, "hallSensorResetTask", 1024, &event_queue, prio, NULL, 1);
+#else
+#endif
 
     // start timers
     esp_timer_start_periodic(chrono_timer, CONFIG_CHRONO_TIME);

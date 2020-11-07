@@ -14,11 +14,12 @@
 #include "esp_timer.h"
 
 #define HALL_MARGIN 100
-#define TOUCH_SENSOR_MARGIN 100
+#define TOUCH_PAD_MARGIN (CONFIG_TOUCH_THRESHOLD / 2)
 #define BOUNCE_TIME 200
 
 #define ESP_INTR_FLAG_DEFAULT 0
 #define TOUCHPAD_FILTER_TOUCH_PERIOD (10)
+#define TOUCH_THRESH_FACTOR  (0.2f)
 
 #define GPIO_OUTPUT_IO_0 18
 #define GPIO_OUTPUT_PIN_SEL (1ULL<<GPIO_OUTPUT_IO_0)
@@ -28,13 +29,13 @@
 
 static fsm_event reset_ev = reset;
 static char pin_state = 1;
+static int32_t pad0_init;
 
 typedef struct Signal {
     QueueHandle_t *queue;
     SemaphoreHandle_t *sem;
 };
 
-void eventTaskLogic(fsm_event *ev, struct Signal *signals);
 void touchSensorTask(void *pvparameters);
 void timerTask(void *pvparameters);
 void FSMTask(void *pvparameters);
