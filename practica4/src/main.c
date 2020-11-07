@@ -50,6 +50,25 @@ void FSMTask(void *pvparameters) {
 }
 
 
+void hallSensorResetTask(void *pvparameters) {
+    QueueHandle_t *event_queue = (QueueHandle_t *) pvparameters;
+
+    while(1){
+        if(hall_sensor_read() < CONFIG_HALL_THRESHOLD) {
+            xQueueSendToFront(*event_queue, (void *) &reset_ev, 100);
+
+            // wait until the sensor stops detecting interaction
+            while(hall_sensor_read() < (CONFIG_HALL_THRESHOLD + HALL_MARGIN)){
+                vTaskDelay(BOUNCE_TIME);
+            }
+        }
+
+        vTaskDelay(CONFIG_RESET_POLLING_TIME);
+    }
+    vTaskDelete(NULL);
+}
+
+
 static void IRAM_ATTR timer_isr_handler(void *arg) {
     SemaphoreHandle_t *timerSem = (SemaphoreHandle_t *) arg;
     BaseType_t hpTask = pdFALSE;
@@ -84,15 +103,6 @@ static void touchSensorIsr(void *args) {
 static void chronoCallback(void *arg) {
     pin_state = (pin_state + 1) % 2;
     gpio_set_level(GPIO_OUTPUT_IO_0, pin_state%2);
-}
-
-
-static void resetTimerCallback(void *arg) {
-    QueueHandle_t *event_queue = (QueueHandle_t *) arg;
-
-    if(hall_sensor_read() < CONFIG_HALL_THRESHOLD) {
-        xQueueSendToFront(*event_queue, (void *) &reset_ev, 100);
-    }
 }
 
 
@@ -137,7 +147,7 @@ void app_main() {
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
     gpio_isr_handler_add(GPIO_INPUT_IO_0, timer_isr_handler, (void*) &timerSem);
 
-    // touch pad configuration
+    // touch-pad 0 configuration
     touch_pad_init();
     touch_pad_set_fsm_mode(TOUCH_FSM_MODE_TIMER);
     touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
@@ -147,33 +157,26 @@ void app_main() {
     touch_pad_isr_register(touchSensorIsr, &touchSensorSem);
     touch_pad_intr_enable();
 
-
     // timers configuration
+    esp_timer_handle_t chrono_timer;
+
     const esp_timer_create_args_t chrono_args = {
         .callback = &chronoCallback,
         .name = "chrono_timer"
     };
-    const esp_timer_create_args_t reset_args = {
-        .callback = &resetTimerCallback,
-        .arg = (void *) &event_queue,
-        .name = "reset_timer"
-    };
 
-    esp_timer_handle_t chrono_timer, reset_timer;
     esp_timer_create(&chrono_args, &chrono_timer);
-    esp_timer_create(&reset_args, &reset_timer);
 
     // tasks configutation
     xTaskCreatePinnedToCore(&touchSensorTask, "touchSensorTask", 3096, &touchSignals, prio, NULL, 0);
     xTaskCreatePinnedToCore(&timerTask, "timerTask", 3096, &timerSignals, prio, NULL, 0);
     xTaskCreatePinnedToCore(&FSMTask, "FSMTask", 3096, &event_queue, prio, NULL, 1);
+    xTaskCreatePinnedToCore(&hallSensorResetTask, "hallSensorResetTask", 1024, &event_queue, prio, NULL, 1);
 
     // start timers
     esp_timer_start_periodic(chrono_timer, CONFIG_CHRONO_TIME);
-    esp_timer_start_periodic(reset_timer, CONFIG_RESET_POLLING_TIME);
 
     while(1) { vTaskDelay(1000); }
 
     esp_timer_delete(chrono_timer);
-    esp_timer_delete(reset_timer);
 }

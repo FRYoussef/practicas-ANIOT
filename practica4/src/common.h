@@ -13,8 +13,9 @@
 #include "fsm/fsm.h"
 #include "esp_timer.h"
 
-#define CHRONO_TIMER_ID 1
-#define RESET_TIMER_ID 2
+#define HALL_MARGIN 100
+#define TOUCH_SENSOR_MARGIN 100
+#define BOUNCE_TIME 200
 
 #define ESP_INTR_FLAG_DEFAULT 0
 #define TOUCHPAD_FILTER_TOUCH_PERIOD (10)
@@ -25,7 +26,6 @@
 #define GPIO_INPUT_IO_0 16
 #define GPIO_INPUT_PIN_SEL (1ULL<<GPIO_INPUT_IO_0)
 
-static uint32_t s_pad_init_val[TOUCH_PAD_MAX];
 static fsm_event reset_ev = reset;
 static char pin_state = 1;
 
@@ -38,11 +38,11 @@ void eventTaskLogic(fsm_event *ev, struct Signal *signals);
 void touchSensorTask(void *pvparameters);
 void timerTask(void *pvparameters);
 void FSMTask(void *pvparameters);
+void hallSensorResetTask(void *pvparameters);
 
 static void IRAM_ATTR timer_isr_handler(void *arg);
 static void touchSensorIsr(void *args);
 
 static void chronoCallback(void*);
-static void resetTimerCallback(void*);
 
 #endif
