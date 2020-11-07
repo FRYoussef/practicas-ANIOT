@@ -71,20 +71,61 @@ void FSMTask(void *pvparameters) {
 
 void hallSensorResetTask(void *pvparameters) {
     QueueHandle_t *event_queue = (QueueHandle_t *) pvparameters;
+    static fsm_event reset_ev = reset;
 
     while(1){
         if(hall_sensor_read() < CONFIG_HALL_THRESHOLD) {
             xQueueSendToFront(*event_queue, (void *) &reset_ev, 100);
 
             // wait until the sensor stops detecting interaction
-            while(hall_sensor_read() < (CONFIG_HALL_THRESHOLD + HALL_MARGIN)){
+            do {
                 vTaskDelay(BOUNCE_TIME);
-            }
+            } while(hall_sensor_read() < (CONFIG_HALL_THRESHOLD + HALL_MARGIN));
         }
 
         vTaskDelay(CONFIG_RESET_POLLING_TIME);
     }
     vTaskDelete(NULL);
+}
+
+
+void infraredSensorResetTask(void *pvparameters) {
+    struct InfraredParams *params = (struct InfraredParams *) pvparameters;
+    static fsm_event reset_ev = reset;
+
+    while(1){
+        if(get_distance(params->adc_chars) < INFRARED_FIRE_DISTANCE) {
+            xQueueSendToFront(*params->queue, (void *) &reset_ev, 100);
+
+            // wait until the sensor stops detecting interaction
+            do{
+                vTaskDelay(BOUNCE_TIME);
+            }while(get_distance(params->adc_chars) < INFRARED_FIRE_DISTANCE);
+        }
+
+        vTaskDelay(CONFIG_RESET_POLLING_TIME);
+    }
+    vTaskDelete(NULL);
+}
+
+
+float get_distance(esp_adc_cal_characteristics_t *adc_chars) {
+    uint32_t adc_reading = 0;
+
+    for(int i = 0; i < INFRARED_SAMPLES; i++)
+        adc_reading += adc1_get_raw((adc1_channel_t)ADC_CHANNEL_4);
+
+    adc_reading /= INFRARED_SAMPLES;
+
+    float voltage = esp_adc_cal_raw_to_voltage(adc_reading, adc_chars);
+
+    // mV -> V
+    voltage /= 1000;
+
+    if (voltage < MIN_VOLTAGE)
+        return MAXFLOAT;
+
+    return (12.37 * pow(voltage, -1.1f));
 }
 
 
@@ -136,8 +177,20 @@ void app_main() {
     timerSignals.queue = &event_queue;
     timerSignals.sem = &timerSem;
 
-    // mandatory for hall sensor
+    // also mandatory for hall sensor
     adc1_config_width(ADC_WIDTH_BIT_12);
+
+#ifndef CONFIG_ENABLE_HALL_SENSOR
+    // infrared configuration
+    adc1_config_channel_atten(ADC_CHANNEL_4, ADC_ATTEN_DB_11);
+    esp_adc_cal_characteristics_t *adc_chars = calloc(1, sizeof(esp_adc_cal_characteristics_t));
+    esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, DEFAULT_VREF, adc_chars);
+
+    struct InfraredParams ifrared_params;
+    ifrared_params.queue = &event_queue;
+    ifrared_params.adc_chars = adc_chars;
+
+#endif
 
     // // gpio configuration
     // output pin
@@ -189,6 +242,7 @@ void app_main() {
 #ifdef CONFIG_ENABLE_HALL_SENSOR
     xTaskCreatePinnedToCore(&hallSensorResetTask, "hallSensorResetTask", 1024, &event_queue, prio, NULL, 1);
 #else
+    xTaskCreatePinnedToCore(&infraredSensorResetTask, "infraredSensorResetTask", 2048, &ifrared_params, prio, NULL, 1);
 #endif
 
     // start timers
@@ -197,4 +251,7 @@ void app_main() {
     while(1) { vTaskDelay(1000); }
 
     esp_timer_delete(chrono_timer);
+#ifndef CONFIG_ENABLE_HALL_SENSOR
+    free(adc_chars);
+#endif
 }
