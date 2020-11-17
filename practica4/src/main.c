@@ -53,7 +53,7 @@ void FSMTask(void *pvparameters) {
     fsm_event ev;
     BaseType_t q_ready;
     int seconds;
-    void (* foo)(int*);
+    void (* foo)(int *, fsm_event *);
 
     while(1) {
         do { q_ready = xQueueReceive(*event_queue, (void *) &ev, 1000); } while(!q_ready);
@@ -63,7 +63,7 @@ void FSMTask(void *pvparameters) {
         
         // event function
         foo = state_foo[state];
-        foo(&seconds);
+        foo(&seconds, &ev);
     }
     vTaskDelete(NULL);
 }

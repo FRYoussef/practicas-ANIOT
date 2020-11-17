@@ -1,23 +1,26 @@
 #include "fsm.h"
 
-void initial_foo(int *seconds) {
+void initial_foo(int *seconds, fsm_event *ev) {
     *seconds = 0;
-    printChrono(*seconds);
+    printChrono(*seconds, *ev);
 }
 
 
-void running_foo(int *seconds) {
+void running_foo(int *seconds, fsm_event *ev) {
     (*seconds)++;
-    printChrono(*seconds);
+    printChrono(*seconds, *ev);
 }
 
 
-void stopped_foo(int *seconds) {
-    printChrono(*seconds);
+void stopped_foo(int *seconds, fsm_event *ev) {
+    printChrono(*seconds, *ev);
 }
 
 
-void printChrono(int seconds) {
+void printChrono(int seconds, fsm_event ev) {
+    if (ev != one_sec)
+        return;
+
     int ss, mm;
 
     ss = seconds % 60;
