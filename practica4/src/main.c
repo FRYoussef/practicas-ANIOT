@@ -8,9 +8,9 @@ void timerTask(void *pvparameters) {
 
     while(1) {
         // wait till sem is released
-        do { q_ready = xSemaphoreTake(*signals->sem, 1000); } while(!q_ready);
+        do { q_ready = xSemaphoreTake(signals->sem, 1000); } while(!q_ready);
         // keep trying if queue is full
-        do { q_ready = xQueueSendToFront(*signals->queue, (void *) &ev, 100); } while(!q_ready);
+        do { q_ready = xQueueSendToFront(signals->queue, (void *) &ev, 100); } while(!q_ready);
     }
     vTaskDelete(NULL);
 }
@@ -22,24 +22,26 @@ void touchSensorTask(void *pvparameters) {
     //eventTaskLogic(&ev, signals);
     BaseType_t q_ready;
     int32_t value = 0;
+    u_char pool_it = 0;
 
     while(1) {
         // wait till sem is released
-        do { q_ready = xSemaphoreTake(*signals->sem, 1000); } while(!q_ready);
+        do { q_ready = xSemaphoreTake(signals->sem, 1000); } while(!q_ready);
 
         // keep trying if queue is full
-        do { q_ready = xQueueSendToFront(*signals->queue, (void *) &ev, 100); } while(!q_ready);
+        do { q_ready = xQueueSendToFront(signals->queue, (void *) &ev, 100); } while(!q_ready);
 
         // wait till touchpad(0) is released
         touch_pad_read_filtered(0, &value);
-        while(value < (pad0_init - TOUCH_PAD_MARGIN)) {
+        while(value < (pad0_init - TOUCH_PAD_MARGIN) && pool_it < MAX_POOL_IT) {
             vTaskDelay(BOUNCE_TIME);
             touch_pad_read_filtered(0, &value);
+            pool_it++;
         }
 
         // restore touchpad isr
-        vTaskDelay(BOUNCE_TIME);
         touch_pad_intr_enable();
+        pool_it = 0;
         
     }
 
@@ -72,6 +74,7 @@ void FSMTask(void *pvparameters) {
 void hallSensorResetTask(void *pvparameters) {
     QueueHandle_t *event_queue = (QueueHandle_t *) pvparameters;
     static fsm_event reset_ev = reset;
+    u_char pool_it = 0;
 
     while(1){
         if(hall_sensor_read() < CONFIG_HALL_THRESHOLD) {
@@ -80,7 +83,10 @@ void hallSensorResetTask(void *pvparameters) {
             // wait until the sensor stops detecting interaction
             do {
                 vTaskDelay(BOUNCE_TIME);
-            } while(hall_sensor_read() < (CONFIG_HALL_THRESHOLD + HALL_MARGIN));
+                pool_it++;
+            } while(hall_sensor_read() < (CONFIG_HALL_THRESHOLD + HALL_MARGIN) && pool_it < MAX_POOL_IT);
+
+            pool_it = 0;
         }
 
         vTaskDelay(CONFIG_RESET_POLLING_TIME);
@@ -92,15 +98,19 @@ void hallSensorResetTask(void *pvparameters) {
 void infraredSensorResetTask(void *pvparameters) {
     struct InfraredParams *params = (struct InfraredParams *) pvparameters;
     static fsm_event reset_ev = reset;
+    u_char pool_it = 0;
 
     while(1){
         if(get_distance(params->adc_chars) < INFRARED_FIRE_DISTANCE) {
-            xQueueSendToFront(*params->queue, (void *) &reset_ev, 100);
+            xQueueSendToFront(params->queue, (void *) &reset_ev, 100);
 
             // wait until the sensor stops detecting interaction
             do{
                 vTaskDelay(BOUNCE_TIME);
-            }while(get_distance(params->adc_chars) < INFRARED_FIRE_DISTANCE);
+                pool_it++;
+            }while(get_distance(params->adc_chars) < INFRARED_FIRE_DISTANCE && pool_it < MAX_POOL_IT);
+
+            pool_it = 0;
         }
 
         vTaskDelay(CONFIG_RESET_POLLING_TIME);
@@ -172,10 +182,10 @@ void app_main() {
     xSemaphoreTake(touchSensorSem, 0);
     xSemaphoreTake(timerSem, 0);
 
-    touchSignals.queue = &event_queue;
-    touchSignals.sem = &touchSensorSem;
-    timerSignals.queue = &event_queue;
-    timerSignals.sem = &timerSem;
+    touchSignals.queue = event_queue;
+    touchSignals.sem = touchSensorSem;
+    timerSignals.queue = event_queue;
+    timerSignals.sem = timerSem;
 
     // also mandatory for hall sensor
     adc1_config_width(ADC_WIDTH_BIT_12);
@@ -187,9 +197,8 @@ void app_main() {
     esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, DEFAULT_VREF, adc_chars);
 
     struct InfraredParams ifrared_params;
-    ifrared_params.queue = &event_queue;
+    ifrared_params.queue = event_queue;
     ifrared_params.adc_chars = adc_chars;
-
 #endif
 
     // // gpio configuration
@@ -218,9 +227,18 @@ void app_main() {
     touch_pad_set_fsm_mode(TOUCH_FSM_MODE_TIMER);
     touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
 
-    touch_pad_config(0, CONFIG_TOUCH_THRESHOLD);
+    // first configuration is to get the touchpad idle voltage 
+    touch_pad_config(0, 0);
     touch_pad_filter_start(TOUCHPAD_FILTER_TOUCH_PERIOD);
     touch_pad_read_filtered(0, &pad0_init);
+
+    // now config the tochpad to launch the ISR at a margin drop voltage.
+    // margin is 10% of touchpad idle voltage
+    TOUCH_PAD_MARGIN = (u_int32_t) pad0_init / 10;
+    touch_pad_filter_stop();
+    touch_pad_config(0, pad0_init - TOUCH_PAD_MARGIN);
+    touch_pad_filter_start(TOUCHPAD_FILTER_TOUCH_PERIOD);
+
     touch_pad_isr_register(touchSensorIsr, &touchSensorSem);
     touch_pad_intr_enable();
 

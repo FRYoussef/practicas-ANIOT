@@ -17,8 +17,8 @@
 #include "esp_adc_cal.h"
 
 #define HALL_MARGIN 100
-#define TOUCH_PAD_MARGIN (CONFIG_TOUCH_THRESHOLD / 2)
 #define BOUNCE_TIME 200
+#define MAX_POOL_IT 5
 #define INFRARED_FIRE_DISTANCE 10.0f
 #define INFRARED_SAMPLES 10
 #define DEFAULT_VREF 1086 // $IDF_PATH/components/esptool_py/esptool/espefuse.py --port /dev/ttyUSB0 adc_info
@@ -35,15 +35,16 @@
 #define GPIO_INPUT_PIN_SEL (1ULL<<GPIO_INPUT_IO_0)
 
 static char pin_state = 1;
-static int32_t pad0_init;
+static uint16_t pad0_init;
+static uint32_t TOUCH_PAD_MARGIN;
 
 typedef struct Signal {
-    QueueHandle_t *queue;
-    SemaphoreHandle_t *sem;
+    QueueHandle_t queue;
+    SemaphoreHandle_t sem;
 };
 
 typedef struct InfraredParams {
-    QueueHandle_t *queue;
+    QueueHandle_t queue;
     esp_adc_cal_characteristics_t *adc_chars;
 };
 
