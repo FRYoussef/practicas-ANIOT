@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "contiki.h"
 #include "sys/clock.h"
+#include "dev/leds.h"
 
 #define SENSOR_TIMEOUT 5
 
