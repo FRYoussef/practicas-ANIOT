@@ -14,12 +14,16 @@ static int32_t example = 0;
 PROCESS_THREAD(print_process, ev, data)
 {
     PROCESS_BEGIN();
+    leds_init();
+    leds_off(LEDS_GREEN);
+    int32_t value;
 
     while(1) {
         PROCESS_WAIT_EVENT_UNTIL(ev == sensor_event);
+        value = *((int32_t *)data);
 
-
-        printf("%ld\n", *((int32_t *)data));
+        printf("%ld\n", value);
+        leds_toggle(LEDS_GREEN);
     }
 
     PROCESS_END();
