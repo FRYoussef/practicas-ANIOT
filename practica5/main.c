@@ -2,8 +2,10 @@
 #include "contiki.h"
 #include "sys/clock.h"
 #include "dev/leds.h"
+#include "board-peripherals.h"
+#include "sys/ctimer.h"
 
-#define SENSOR_TIMEOUT 5
+#define SENSOR_TIMEOUT (5 * CLOCK_SECOND)
 
 typedef struct {
     int32_t  x;
@@ -17,14 +19,30 @@ AUTOSTART_PROCESSES(&print_process, &sensor_process);
 
 static process_event_t sensor_event;
 static AccData sample;
-static int counter;
+static struct ctimer mpu_timer;
 
-PROCESS_THREAD(print_process, ev, data)
-{
+
+static void init_mpu_reading(void *not_used) {
+  mpu_9250_sensor.configure(SENSORS_ACTIVE, MPU_9250_SENSOR_TYPE_ALL);
+}
+
+
+static void get_mpu_reading(AccData *sample) {
+    sample->x = mpu_9250_sensor.value(MPU_9250_SENSOR_TYPE_ACC_X);
+    sample->y = mpu_9250_sensor.value(MPU_9250_SENSOR_TYPE_ACC_Y);
+    sample->z = mpu_9250_sensor.value(MPU_9250_SENSOR_TYPE_ACC_Z);
+
+    SENSORS_DEACTIVATE(mpu_9250_sensor);
+    ctimer_set(&mpu_timer, SENSOR_TIMEOUT, init_mpu_reading, NULL);
+}
+
+
+PROCESS_THREAD(print_process, ev, data) {
     PROCESS_BEGIN();
+
+    AccData value;
     leds_init();
     leds_off(LEDS_GREEN | LEDS_RED);
-    AccData value;
 
     while(1) {
         PROCESS_WAIT_EVENT_UNTIL(ev == sensor_event);
@@ -47,22 +65,21 @@ PROCESS_THREAD(print_process, ev, data)
     PROCESS_END();
 }
 
-PROCESS_THREAD(sensor_process, ev, data)
-{
+
+PROCESS_THREAD(sensor_process, ev, data) {
+
     PROCESS_BEGIN();
+
+    SENSORS_ACTIVATE(reed_relay_sensor);
+    init_mpu_reading(NULL);
 
     sensor_event = process_alloc_event();
 
     while(1) {
-        
-        counter++;
-        if(counter % 2 == 0)
-            sample.z = 1;
-        else
-            sample.z = -1;
+        PROCESS_WAIT_EVENT_UNTIL(ev == sensors_event);
 
+        get_mpu_reading(&sample);
         process_post_synch(&print_process, sensor_event, (void *) &sample);
-        clock_wait(SENSOR_TIMEOUT * CLOCK_SECOND);
     }
 
     PROCESS_END();
