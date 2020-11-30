@@ -1,0 +1,15 @@
+menu "PR6 configuration"
+    config TIMER_DELAY
+    int "Timer wake up delay in micro-seconds"
+    range 100000 100000000
+    default 10000000
+
+    config SAMPLE_DELAY
+    int "Sample delay in ms"
+    range 100 100000
+    default 1000
+
+    config DEEP_SLEEP
+    bool "True uses deep sleep mode. False uses light sleep mode"
+    default True
+endmenu

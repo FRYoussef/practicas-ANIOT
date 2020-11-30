@@ -119,6 +119,14 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
+# PR6 configuration
+#
+CONFIG_TIMER_DELAY=10000000
+CONFIG_SAMPLE_DELAY=1000
+CONFIG_DEEP_SLEEP=y
+# end of PR6 configuration
+
+#
 # Compiler options
 #
 CONFIG_COMPILER_OPTIMIZATION_DEFAULT=y
