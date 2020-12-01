@@ -1,0 +1,25 @@
+menu "PR4 configuration"
+    config QUEUE_SIZE
+    int "The size of the queue events"
+    range 1 20
+    default 5
+
+    config CHRONO_TIME
+    int "Chronometer time in microseconds"
+    range 100 10000000
+    default 1000000
+
+    config RESET_POLLING_TIME
+    int "Reset polling time in milliseconds"
+    range 10 1000
+    default 100
+
+    config HALL_THRESHOLD
+    int "Hall sensor threshold"
+    default 0
+
+    config ENABLE_HALL_SENSOR
+    bool "True enables hall sensor. False enables infrared sensor"
+    default True
+
+endmenu
