@@ -1,0 +1,6 @@
+menu "PR7 configuration"
+    config TIMER_DELAY
+    int "Timer wake up delay in micro-seconds"
+    range 100000 100000000
+    default 10000000
+endmenu
