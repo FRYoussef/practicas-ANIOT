@@ -5,11 +5,14 @@
 #include "esp_log.h"
 #include "esp_sleep.h"
 #include "esp_pm.h"
+#include "esp_timer.h"
 
 #define N_SAMPLES 5
 #define SAMPLES_TO_GO_SLEEP 5
 #define CONFIG_EXAMPLE_MAX_CPU_FREQ_MHZ
 static const char* TAG = "Practica6";
+static float sample;
+static int32_t sample_counter = 0;
 
 
 void print_wakeup_cause(esp_sleep_wakeup_cause_t cause){
@@ -48,13 +51,30 @@ void go_low_energy_mode(){
 }
 
 
+void monitor_sensor() {
+    sample = measure_hall_sensor();
+    ESP_LOGI(TAG, "Sample: %f", sample);
+
+#ifndef NON_SLEEP
+    sample_counter++;
+
+    if(sample_counter % SAMPLES_TO_GO_SLEEP == 0)
+        go_low_energy_mode();
+#endif
+#ifdef CONFIG_PM_ENABLE
+    print_wakeup_cause(esp_sleep_get_wakeup_cause());
+#endif
+}
+
+
 void app_main() {
 #ifdef CONFIG_DEEP_SLEEP
     print_wakeup_cause(esp_sleep_get_wakeup_cause());
 #endif
 
-    float sample;
-    int32_t sample_counter = 0;
+    // float sample;
+    // int32_t sample_counter = 0;
+    esp_timer_handle_t timer;
 
     // mandatory for hall sensor
     adc1_config_width(ADC_WIDTH_BIT_12);
@@ -68,19 +88,30 @@ void app_main() {
     esp_pm_configure(&pm_config);
 #endif
 
-    while(1) {
-        sample = measure_hall_sensor();
-        sample_counter++;
+    const esp_timer_create_args_t timer_args = {
+        .callback = &monitor_sensor,
+        .name = "timer"
+    };
 
-        ESP_LOGI(TAG, "Sample: %f", sample);
+    esp_timer_create(&timer_args, &timer);
+    esp_timer_start_periodic(timer, CONFIG_SAMPLE_DELAY*1000);
 
-#ifndef NON_SLEEP
-        if(sample_counter % SAMPLES_TO_GO_SLEEP == 0)
-            go_low_energy_mode();
-#endif
-        vTaskDelay(pdMS_TO_TICKS(CONFIG_SAMPLE_DELAY));
-#ifdef CONFIG_PM_ENABLE
-        print_wakeup_cause(esp_sleep_get_wakeup_cause());
-#endif
-    }
+//     while(1) {
+//         sample = measure_hall_sensor();
+
+//         ESP_LOGI(TAG, "Sample: %f", sample);
+
+// #ifndef NON_SLEEP
+//         sample_counter++;
+
+//         if(sample_counter % SAMPLES_TO_GO_SLEEP == 0)
+//             go_low_energy_mode();
+// #endif
+//         vTaskDelay(pdMS_TO_TICKS(CONFIG_SAMPLE_DELAY));
+// #ifdef CONFIG_PM_ENABLE
+//         print_wakeup_cause(esp_sleep_get_wakeup_cause());
+// #endif
+//     }
+
+    esp_timer_delete(timer);
 }
