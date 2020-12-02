@@ -1,13 +1,21 @@
+#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include "esp_vfs.h"
+#include "esp_vfs_fat.h"
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "driver/adc.h"
-#include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 
 #define N_SAMPLES 5
-static const char* TAG = "Practica7";
 static float sample;
+static const char* TAG = "Practica7";
+// Mount path for the partition
+const char *base_path = "/spiflash";
+static wl_handle_t s_wl_handle = WL_INVALID_HANDLE;
+
 
 float measure_hall_sensor() {
     int32_t m = 0;
