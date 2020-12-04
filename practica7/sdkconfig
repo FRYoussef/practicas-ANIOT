@@ -122,6 +122,7 @@ CONFIG_PARTITION_TABLE_MD5=y
 # PR7 configuration
 #
 CONFIG_TIMER_DELAY=10000000
+CONFIG_TIME_TO_STOP=60
 # end of PR7 configuration
 
 #
