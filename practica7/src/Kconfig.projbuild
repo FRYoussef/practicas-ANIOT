@@ -1,0 +1,16 @@
+menu "PR7 configuration"
+    config TIMER_DELAY
+    int "Timer delay to take samples (in micro-seconds)."
+    range 100000 100000000
+    default 10000000
+
+    config TIME_TO_STOP
+    int "Number of seconds which the aplication has to take samples."
+    range 1 3600
+    default 60
+
+    config SHOW_N_SAMPLES
+    int "The number of samples the application has to show before finishing its execution."
+    range 1 10
+    default 5
+endmenu
