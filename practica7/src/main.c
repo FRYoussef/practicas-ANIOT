@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_vfs.h"
 #include "esp_vfs_fat.h"
 #include "esp_system.h"
@@ -11,10 +13,8 @@
 #include "esp_timer.h"
 
 #define N_SAMPLES 5
-static float sample;
-static int32_t init_time;
-static bool wake_up = false;
-static esp_timer_handle_t timer;
+#define MAX_LINE_LENGTH 80
+
 static const char* TAG = "Practica7";
 // Mount path for the partition
 const char *base_path = "/spiflash";
@@ -43,17 +43,13 @@ float measure_hall_sensor() {
 
 
 void monitor_sensor() {
-    sample = measure_hall_sensor();
-    ESP_LOGI(TAG, "Sample: %f", sample);
-
-    if(time(NULL) - init_time >= CONFIG_TIME_TO_STOP) {
-        wake_up = true;
-        esp_timer_stop(timer);
-    }
+    ESP_LOGI(TAG, "Sample: %f", measure_hall_sensor());
 }
 
 
 void app_main() {
+    esp_timer_handle_t timer;
+
     // mandatory for hall sensor
     adc1_config_width(ADC_WIDTH_BIT_12);
 
@@ -79,13 +75,31 @@ void app_main() {
     esp_log_set_vprintf(&log_printf);
 
     // store time before launch the timer
-    init_time = time(NULL);
+    bool wake_up = false;
+    int init_time = time(NULL);
     esp_timer_start_periodic(timer, CONFIG_TIMER_DELAY);
 
-    while(!wake_up) { 
-        vTaskDelay(pdMS_TO_TICKS(1000));
+    while(!wake_up) {
+        vTaskDelay(pdMS_TO_TICKS(500));
+        
+        if((time(NULL) - init_time) >= CONFIG_TIME_TO_STOP) {
+            esp_timer_stop(timer);
+            wake_up = true;
+        }
     }
 
+    // read and print first n samples
+    FILE *f = fopen("/spiflash/log.txt", "r");
+    char line[MAX_LINE_LENGTH] = {0};
+    int nsamples = 0;
+
+    // Ends when it found n samples or with EOF.
+    while((nsamples < CONFIG_SHOW_N_SAMPLES) && fgets(line, MAX_LINE_LENGTH, f) != NULL) {
+        printf("%s", line);
+        nsamples++;
+    }
+
+    fclose(f);
     esp_timer_delete(timer);
     esp_vfs_fat_spiflash_unmount(base_path, s_wl_handle);
 }
