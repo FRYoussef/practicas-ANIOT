@@ -21,6 +21,7 @@
 #include "driver/gpio.h"
 #include "protocol_examples_common.h"
 #include "errno.h"
+#include "driver/adc.h"
 
 #if CONFIG_EXAMPLE_CONNECT_WIFI
 #include "esp_wifi.h"
@@ -265,10 +266,29 @@ static bool diagnostic(void)
     return diagnostic_is_ok;
 }
 
+void hall_sensor_task(void *pvparameters) {
+    bool run = true;
+
+    while(run){
+        vTaskDelay(150);
+        
+        if(hall_sensor_read() < 0)
+            run = false;
+    }
+
+    ESP_LOGI(TAG, "Hall sensor interaction detected.");
+    xTaskCreate(&ota_example_task, "ota_example_task", 8192, NULL, 5, NULL);
+    vTaskDelete(NULL);
+}
+
+
 void app_main(void)
 {
     uint8_t sha_256[HASH_LEN] = { 0 };
     esp_partition_t partition;
+
+    // mandatory for hall sensor
+    adc1_config_width(ADC_WIDTH_BIT_12);
 
     // get sha256 digest for the partition table
     partition.address   = ESP_PARTITION_TABLE_OFFSET;
@@ -331,5 +351,5 @@ void app_main(void)
     esp_wifi_set_ps(WIFI_PS_NONE);
 #endif // CONFIG_EXAMPLE_CONNECT_WIFI
 
-    xTaskCreate(&ota_example_task, "ota_example_task", 8192, NULL, 5, NULL);
+    xTaskCreate(&hall_sensor_task, "hall_sensor_task", 8192, NULL, 5, NULL);
 }
