@@ -113,5 +113,7 @@ void app_main() {
 // #endif
 //     }
 
+    while(1) {}
+
     esp_timer_delete(timer);
 }
